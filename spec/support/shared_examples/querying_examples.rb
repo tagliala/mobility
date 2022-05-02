@@ -248,10 +248,10 @@ shared_examples_for "AR Model with translated scope" do |model_class_name, a1=:t
   describe ".order" do
     let!(:i) do
       [
-        model_class.create(a1 => "foo0"),
-        model_class.create(a1 => "foo2", a2 => "foo1"),
-        model_class.create(a1 => "foo1", a2 => "bar2"),
-        model_class.create(a1 => "foo3", a2 => "bar1")
+        model_class.create(a1 => "foo0",               published: true),
+        model_class.create(a1 => "foo2", a2 => "foo1", published: true),
+        model_class.create(a1 => "foo1", a2 => "bar2", published: false),
+        model_class.create(a1 => "foo3", a2 => "bar1", published: true)
       ]
     end
 
@@ -273,12 +273,41 @@ shared_examples_for "AR Model with translated scope" do |model_class_name, a1=:t
     it "orders records correctly with 2-key hash argument" do
       skip "Not supported by #{backend}" if [:table, :key_value].include?(backend)
 
-      added = model_class.create(a1 => "foo2", a2 => "foo2")
-      expect(query_scope.order(a1 => :desc, a2 => :asc)).to eq([i[3], i[1], added, i[2], i[0]])
+      added = [
+        model_class.create(a1 => "foo2", a2 => "foo2"),
+        model_class.create(a1 => "foo3", a2 => "bar0")
+      ]
+      expect(query_scope.order(a1 => :desc, a2 => :asc)).to eq([added[1], i[3], i[1], added[0], i[2], i[0]])
+    end
+
+    it "orders records correctly with multiple arguments" do
+      skip "Not supported by #{backend}" if [:table, :key_value].include?(backend)
+
+      added = model_class.create(a1 => "foo2", a2 => "foo0")
+      expect(query_scope.order(a1, a2)).to eq([i[0], i[2], added, i[1], i[3]])
+    end
+
+    it "orders records correctly with multiple hash arguments" do
+      skip "Not supported by #{backend}" if [:table, :key_value].include?(backend)
+
+      added = [
+        model_class.create(a1 => "foo2", a2 => "foo2"),
+        model_class.create(a1 => "foo3", a2 => "bar0")
+      ]
+      expect(query_scope.order({ a1 => :desc }, { a2 => :asc })).to eq([added[1], i[3], i[1], added[0], i[2], i[0]])
     end
 
     it "handles untranslated attributes" do
       expect { query_scope.order(published: :desc) }.not_to raise_error
+    end
+
+    it "handles mix of translated and untranslated attributes (translated first)" do
+      added = model_class.create(a1 => "foo1", published: true)
+      expect(query_scope.order(a1 => :desc, published: :desc)).to eq([i[3], i[1], added, i[2], i[0]])
+    end
+
+    it "handles mix of translated and untranslated attributes (translated last)" do
+      expect(query_scope.order(published: :desc, a1 => :desc)).to eq([i[3], i[1], i[0], i[2]])
     end
 
     it "does not modify original hash" do
